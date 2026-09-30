@@ -129,14 +129,14 @@ jobs:
           DONATED_OPENROUTER_KEY_ENABLED: 'false'
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           NIMBLE_API_KEY: ${{ secrets.NIMBLE_API_KEY }}
-          RESEARCH_PROVIDER: 'tavily'
+          RESEARCH_PROVIDER: 'nimble'
           # Disable litellm's aiohttp transport (default since v1.71.x): under
           # concurrent async bursts it raises near-instant connection failures
           # litellm re-wraps as a 1ms Timeout (litellm #14895; see
           # scratch_docs_and_planning/transient_retry_fix.md). Code already sets
           # this default in metaculus_bot/__init__.py; pinned here for parity.
           DISABLE_AIOHTTP_TRANSPORT: 'true'
-          # Search runs through Tavily, with Nimbleway as the configured fallback.
+          # Prefer Nimbleway search; Tavily is the fallback when Nimbleway is unavailable.
           NATIVE_SEARCH_ENABLED: 'false'
           FINANCIAL_DATA_ENABLED: 'true'
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}

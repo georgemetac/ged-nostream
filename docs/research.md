@@ -200,9 +200,9 @@ There is exactly one primary search provider, chosen by `choose_provider_with_na
 (`research/providers.py`): Tavily (`TAVILY_API_KEY`) is primary and Nimbleway Search
 (`NIMBLE_API_KEY`) is tried if Tavily fails or returns no usable results. When only
 Nimbleway is configured, it serves directly. Production workflows set
-`RESEARCH_PROVIDER=tavily` and wire both API keys. The explicit
-`RESEARCH_PROVIDER=nimble` override forces Nimbleway. Search itself does not call an
-LLM; model-based analysis uses `OPENROUTER_FREE_MODEL`.
+`RESEARCH_PROVIDER=tavily` and wire both API keys. Mantic is the exception: it sets
+`RESEARCH_PROVIDER=nimble`, preferring Nimbleway and falling back to Tavily. Search itself
+does not call an LLM; model-based analysis uses `OPENROUTER_FREE_MODEL`.
 
 Legacy AskNews, Exa, and Perplexity adapters remain for old configurations but are
 not wired by production workflows.

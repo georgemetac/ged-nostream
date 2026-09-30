@@ -75,7 +75,7 @@ _OMITTED_API_KEY = _OmittedPerplexityApiKey()
 # ---------------------------------------------------------------------------
 
 
-def _web_search_provider(*, preferred: str = "tavily") -> ResearchCallable:
+def _web_search_provider(*, preferred: str | None = None) -> ResearchCallable:
     async def _fetch(question: MetaculusQuestion) -> str:
         provider, research = await search_web_fallback(question.question_text, preferred=preferred)
         if research:
@@ -650,10 +650,10 @@ def choose_provider_with_name(
     """Return a research coroutine and its provider name.
 
     Priority order replicates pre-refactor behaviour:
-    1. Tavily (TAVILY_API_KEY), falling back to Nimbleway (NIMBLE_API_KEY)
-    2. Nimbleway (NIMBLE_API_KEY) when Tavily is not configured
-    3. Legacy providers retained for explicit backwards-compatible overrides
-    4. Fallback stub that returns an empty string.
+     1. Configured web-search preference (Tavily by default, Nimbleway when requested),
+         falling back to the other configured provider
+     2. Legacy providers retained for explicit backwards-compatible overrides
+     3. Fallback stub that returns an empty string.
 
     ``RESEARCH_PROVIDER`` forces a specific provider; an unrecognized value falls
     through to the priority order above.

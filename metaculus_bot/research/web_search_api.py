@@ -10,7 +10,12 @@ from typing import Any
 
 import aiohttp
 
-from metaculus_bot.constants import NIMBLE_API_KEY_ENV, TAVILY_API_KEY_ENV, WEB_SEARCH_API_TIMEOUT_S
+from metaculus_bot.constants import (
+    NIMBLE_API_KEY_ENV,
+    RESEARCH_PROVIDER_ENV,
+    TAVILY_API_KEY_ENV,
+    WEB_SEARCH_API_TIMEOUT_S,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,10 +101,12 @@ async def search_web_fallback(
     *,
     end_date: str | None = None,
     topic: str = "general",
-    preferred: str = "tavily",
+    preferred: str | None = None,
 ) -> tuple[str, str]:
-    """Return ``(provider, markdown)`` using Tavily first and Nimbleway as fallback."""
-    candidates = ("nimble",) if preferred == "nimble" else ("tavily", "nimble")
+    """Return search results, trying the preferred provider before its configured fallback."""
+    if preferred is None:
+        preferred = os.getenv(RESEARCH_PROVIDER_ENV, "tavily").strip().lower()
+    candidates = ("nimble", "tavily") if preferred == "nimble" else ("tavily", "nimble")
     last_error: Exception | None = None
     for provider in candidates:
         if provider == "tavily":

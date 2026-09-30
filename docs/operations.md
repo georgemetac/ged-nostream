@@ -800,7 +800,7 @@ CI.
 
 | Flag | Code default | Prod value | What it gates |
 |---|---|---|---|
-| `NATIVE_SEARCH_ENABLED` | off | `false` | Legacy OpenRouter native web search; production web research uses Tavily with Nimbleway fallback |
+| `NATIVE_SEARCH_ENABLED` | off | `false` | Legacy OpenRouter native web search; production uses Tavily with Nimbleway fallback, except Mantic which prefers Nimbleway with Tavily fallback |
 | `GEMINI_SEARCH_ENABLED` | off | `false` | First-party Google grounded search via the `google-genai` SDK (not used by production workflows) |
 | `FINANCIAL_DATA_ENABLED` | off | `true` | yfinance + FRED data for questions an LLM classifier tags as financial |
 | `PREDICTION_MARKETS_ENABLED` | off | `true` | Polymarket / Kalshi / Manifold / PredictIt snapshot (suppressed under `is_benchmarking=True`) |
@@ -809,7 +809,7 @@ CI.
 | `RESOLUTION_SOURCE_IMPERSONATE_ENABLED` | on | unset (so on) | The free TLS-impersonating retry of a direct-fetch 403 (`research/impersonated_fetch.py`, the `route=impersonate` rung and gap-fill v2's `fetch` / `read_document` ladders alike). The only research flag whose code default is ON, read through `impersonated_fetch.impersonation_enabled()`: it costs no key, no model call and no spend, fires on a host's 403 only, is memoized per host for the run once a host refuses the impersonated client, and sits behind the same wall-budget floor as the other one-GET rungs, so the flag is a kill switch rather than an opt-in. No bot workflow sets it. Set it to `false` to fall straight through to the archive and the paid reader on a 403 |
 | `TS_ANCHOR_ENABLED` | off | `true` | Time-series empirical P10/P50/P90 band from a question's own resolution series |
 | `TS_ANCHOR_CHART_ENABLED` | off | `false` | Chart-image side-channel for the anchor (vision message to base models); held off pending a text-vs-image A/B |
-| `RESEARCH_PROVIDER` | `auto` | `tavily` | Forces the primary web search (`tavily` or `nimble`) instead of automatic credential selection |
+| `RESEARCH_PROVIDER` | `auto` | `tavily` (Mantic: `nimble`) | Selects the preferred web search (`tavily` or `nimble`); the other configured provider is fallback |
 
 The primary provider is chosen by priority: AskNews (when
 `ASKNEWS_CLIENT_ID` + `ASKNEWS_SECRET` are set, the prod case), then Exa, then

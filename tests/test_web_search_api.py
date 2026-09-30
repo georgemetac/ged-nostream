@@ -81,3 +81,25 @@ async def test_empty_tavily_results_fall_back_to_nimble(monkeypatch: pytest.Monk
 
     assert provider == "nimble"
     assert len(providers) == 2
+
+
+@pytest.mark.asyncio
+async def test_nimble_preference_falls_back_to_tavily(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RESEARCH_PROVIDER", "nimble")
+    monkeypatch.setenv("NIMBLE_API_KEY", "nimble-test")
+    monkeypatch.setenv("TAVILY_API_KEY", "tavily-test")
+    providers: list[str] = []
+
+    async def fake_post(url: str, *, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+        providers.append(url)
+        if "nimbleway" in url:
+            raise RuntimeError("temporary error")
+        return {"results": [{"title": "Backup", "url": "https://backup.example", "content": "Found"}]}
+
+    monkeypatch.setattr(web_search_api, "_post_json", fake_post)
+
+    provider, result = await web_search_api.search_web_fallback("Will it happen?")
+
+    assert provider == "tavily"
+    assert "Found" in result
+    assert providers == ["https://sdk.nimbleway.com/v2/search", "https://api.tavily.com/search"]
