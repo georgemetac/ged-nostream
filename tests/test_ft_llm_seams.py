@@ -78,7 +78,7 @@ from litellm.types.utils import Choices, Message, Usage
 
 from metaculus_bot.credit_telemetry import ROLE_METADATA_KEY, reset_donated_key_state_cache
 from metaculus_bot.fallback_openrouter import FallbackOpenRouterLlm
-from metaculus_bot.llm_configs import FORECASTER_LLMS, STACKER_FALLBACK_LLM, STACKER_LLM
+from metaculus_bot.llm_configs import FORECASTER_LLMS, MANTIC_FORECASTER_LLMS, STACKER_FALLBACK_LLM, STACKER_LLM
 from metaculus_bot.research.agentic import llm as agentic_llm
 from metaculus_bot.research.agentic.types import LoopConfig
 from metaculus_bot.research.providers import build_native_search_llm
@@ -251,7 +251,7 @@ class TestProductionKwargShapesReachAcompletion:
         assert FORECASTER_LLMS, "roster must be non-empty for this pin to mean anything"
         saw_xhigh_reasoning = False
 
-        for llm in FORECASTER_LLMS:
+        for llm in [*FORECASTER_LLMS, *MANTIC_FORECASTER_LLMS]:
             declared = llm.litellm_kwargs
             calls = _install_acompletion(monkeypatch)
             await llm.invoke("forecast")

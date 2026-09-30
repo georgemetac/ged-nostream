@@ -48,6 +48,7 @@ from metaculus_bot.forecaster import TemplateForecaster
 from metaculus_bot.llm_configs import (
     DISAGREEMENT_ANALYZER_LLM,
     FORECASTER_LLMS,
+    MANTIC_FORECASTER_LLMS,
     PARSER_LLM,
     RESEARCHER_LLM,
     STACKER_LLM,
@@ -66,6 +67,10 @@ logger = logging.getLogger(__name__)
 
 
 RunMode = Literal["tournament", "minibench", "quarterly_cup", "metaculus_cup", "test_questions", "mantic"]
+
+
+def _forecaster_roster_for_mode(run_mode: RunMode) -> list[Any]:
+    return MANTIC_FORECASTER_LLMS if run_mode == "mantic" else FORECASTER_LLMS
 
 
 class CliArgs(NamedTuple):
@@ -405,7 +410,7 @@ def main() -> None:
 
     # dict[str, Any] because "forecasters" holds a list the parent's invariant annotation cannot express.
     llms: dict[str, Any] = {
-        "forecasters": FORECASTER_LLMS,
+        "forecasters": _forecaster_roster_for_mode(run_mode),
         "stacker": STACKER_LLM,
         "analyzer": DISAGREEMENT_ANALYZER_LLM,
         "summarizer": SUMMARIZER_LLM,

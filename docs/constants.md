@@ -269,7 +269,12 @@ Default on; a Mantic run sets it false and fails shut at startup if it is not, s
 
 `OPENROUTER_FREE_MODEL` is the active LLM route (`openrouter/free`). OpenRouter selects an available
 free model per request; production workflows use `OPENROUTER_API_KEY` and disable donated-key
-routing. `TAVILY_API_KEY_ENV` and `NIMBLE_API_KEY_ENV` name the primary and fallback web-search API
+routing. Mantic's three forecasters are the exception: `MANTIC_FORECASTER_MODELS` in
+`llm_configs.py` pins distinct free model IDs and caps completions at 32,768 tokens. The IDs were
+checked against OpenRouter's live catalog on 2026-09-30. Both platform forecaster rosters also
+send an ordered `models` fallback array containing two additional `:free` models; OpenRouter tries
+these only when the primary model fails. Utility and gap-fill roles still use their existing
+routes. `TAVILY_API_KEY_ENV` and `NIMBLE_API_KEY_ENV` name the primary and fallback web-search API
 keys respectively.
 
 ### ASKNEWS_MAX_CONCURRENCY, ASKNEWS_MAX_RPS, ASKNEWS_MAX_TRIES, ASKNEWS_BACKOFF_SECS

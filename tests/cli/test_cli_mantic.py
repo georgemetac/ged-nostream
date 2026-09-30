@@ -23,6 +23,7 @@ from metaculus_bot.cli import (
     RunMode,
     _assert_personal_keys_only,
     _configure_process,
+    _forecaster_roster_for_mode,
     _parse_cli_args,
     _run_forecasts,
 )
@@ -34,6 +35,12 @@ from metaculus_bot.constants import (
     MANTIC_TOURNAMENT_ID,
     METACULUS_CUP_ID,
     TOURNAMENT_ID,
+)
+from metaculus_bot.llm_configs import (
+    FORECASTER_LLMS,
+    MANTIC_FORECASTER_LLMS,
+    MANTIC_FORECASTER_MODELS,
+    OPENROUTER_FREE_MODEL_FALLBACKS,
 )
 from metaculus_bot.mantic import ManticClient
 from scripts.telemetry.markers import MARKER_SPECS
@@ -67,6 +74,27 @@ class TestAssertPersonalKeysOnly:
     def test_passes_when_the_switch_is_off(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(DONATED_OPENROUTER_KEY_ENABLED_ENV, "false")
         _assert_personal_keys_only()
+
+
+class TestManticForecasterRoster:
+    def test_mantic_uses_distinct_explicit_free_models(self) -> None:
+        assert [llm.model.removeprefix("openrouter/") for llm in MANTIC_FORECASTER_LLMS] == [
+            model.removeprefix("openrouter/") for model in MANTIC_FORECASTER_MODELS
+        ]
+        assert len(set(MANTIC_FORECASTER_MODELS)) == 3
+        assert all(model.endswith(":free") for model in MANTIC_FORECASTER_MODELS)
+        assert all(llm.litellm_kwargs["max_tokens"] == 32_768 for llm in MANTIC_FORECASTER_LLMS)
+        assert all("reasoning" not in llm.litellm_kwargs for llm in MANTIC_FORECASTER_LLMS)
+
+    def test_only_mantic_selects_the_free_model_roster(self) -> None:
+        assert _forecaster_roster_for_mode("mantic") is MANTIC_FORECASTER_LLMS
+        assert _forecaster_roster_for_mode("tournament") is FORECASTER_LLMS
+
+    def test_both_platform_rosters_use_two_explicit_free_fallbacks(self) -> None:
+        assert len(OPENROUTER_FREE_MODEL_FALLBACKS) >= 2
+        assert all(model.endswith(":free") for model in OPENROUTER_FREE_MODEL_FALLBACKS)
+        for llm in [*FORECASTER_LLMS, *MANTIC_FORECASTER_LLMS]:
+            assert llm.litellm_kwargs["extra_body"]["models"] == list(OPENROUTER_FREE_MODEL_FALLBACKS)
 
 
 class TestConfigureProcess:

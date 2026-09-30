@@ -15,8 +15,11 @@ __all__ = [
     "DISAGREEMENT_ANALYZER_LLM",
     "FORECASTER_LLMS",
     "FORECASTER_MODEL_NAMES",
+    "MANTIC_FORECASTER_LLMS",
+    "MANTIC_FORECASTER_MODELS",
     "MARKET_QUERY_AUTHOR_LLM_CONFIG",
     "MARKET_RANKER_LLM_CONFIG",
+    "OPENROUTER_FREE_MODEL_FALLBACKS",
     "PARSER_LLM",
     "RESEARCHER_LLM",
     "STACKER_FALLBACK_LLM",
@@ -59,6 +62,12 @@ ACCEPTABLE_QUANTS = [
 # that forecasting-tools' un-gated tenacity cannot. Spread per-instance (NOT by mutating
 # REASONING_MODEL_CONFIG) so PARSER_LLM / STACKER configs are untouched.
 _FORECASTER_CONFIG = {**REASONING_MODEL_CONFIG, "allowed_tries": 1}
+_MANTIC_FORECASTER_CONFIG = {**_FORECASTER_CONFIG, "max_tokens": 32_768}
+
+OPENROUTER_FREE_MODEL_FALLBACKS: tuple[str, ...] = (
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "thinkingmachines/inkling:free",
+)
 
 
 def forecaster_role(model: str) -> str:
@@ -83,7 +92,29 @@ def _forecaster_slot(model: str, **kwargs: Any) -> GeneralLlm:
     The role is derived from the slug rather than written beside it so a roster swap cannot
     leave a slot mislabeled.
     """
-    return build_llm_with_openrouter_fallback(model=model, role=forecaster_role(model), **_FORECASTER_CONFIG, **kwargs)
+    return build_llm_with_openrouter_fallback(
+        model=model,
+        role=forecaster_role(model),
+        extra_body={"models": list(OPENROUTER_FREE_MODEL_FALLBACKS)},
+        **_FORECASTER_CONFIG,
+        **kwargs,
+    )
+
+
+MANTIC_FORECASTER_MODELS: tuple[str, ...] = (
+    "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "openrouter/google/gemma-4-31b-it:free",
+    "openrouter/qwen/qwen3.8-27b:free",
+)
+MANTIC_FORECASTER_LLMS: list[GeneralLlm] = [
+    build_llm_with_openrouter_fallback(
+        model=model,
+        role=forecaster_role(model),
+        extra_body={"models": list(OPENROUTER_FREE_MODEL_FALLBACKS)},
+        **_MANTIC_FORECASTER_CONFIG,
+    )
+    for model in MANTIC_FORECASTER_MODELS
+]
 
 
 # SEASON-START RITUAL (operator, not an implementing session): resolve "latest per vendor"
