@@ -26,19 +26,15 @@ from metaculus_bot.constants import (
     GAP_FILL_ANALYZER_TIMEOUT,
     GAP_FILL_ANALYZER_WALL_TIMEOUT,
     GAP_FILL_MAX_GAPS,
-    GAP_FILL_RESOLVER_MODEL,
-    GAP_FILL_RESOLVER_REASONING_EFFORT,
-    NATIVE_SEARCH_WALL_TIMEOUT,
 )
 from metaculus_bot.llm_retry import invoke_with_broad_retry, invoke_with_transient_retry
 from metaculus_bot.prompts import (
     disagreement_crux_prompt,
     gap_fill_analyzer_prompt,
     gap_fill_search_prompt,
-    targeted_search_prompt,
 )
-from metaculus_bot.research.providers import build_native_search_llm
 from metaculus_bot.research.raw_log import record_raw_research
+from metaculus_bot.research.web_search_api import search_web_fallback
 from metaculus_bot.structured_output_schema import extract_first_balanced_braces, extract_json_block
 
 __all__ = [
@@ -120,8 +116,8 @@ async def extract_disagreement_crux(
 async def run_targeted_search(crux: str, question_text: str, *, is_benchmarking: bool = False) -> str:
     """Run a targeted web search to resolve a specific factual disagreement.
 
-    Uses OpenAI native web search via OpenRouter (`build_native_search_llm`) to
-    find current, authoritative information about the identified crux.
+    Uses Tavily, with Nimbleway as fallback, to find current information about
+    the identified crux.
 
     Args:
         crux: The factual question(s) driving forecaster disagreement.
@@ -129,18 +125,12 @@ async def run_targeted_search(crux: str, question_text: str, *, is_benchmarking:
         is_benchmarking: If True, excludes prediction market data to avoid data leakage.
 
     Returns:
-        Search results with inline citations addressing the crux.
+        Search results with source URLs addressing the crux.
     """
-    llm = build_native_search_llm(role="targeted_search")
-    prompt = targeted_search_prompt(crux, question_text, is_benchmarking=is_benchmarking)
-    logger.info(
-        f"Running targeted search via {llm.model} for crux: "
-        f"{crux[:100]}..."  # HARNESS-SCAN-EXEMPT-subsampling: a log-line preview, not a data reduction
-    )
-    # The wall is the hard cap; litellm's per-request timeout is not. See docs/research.md "v1 implementation notes".
-    result = await invoke_with_transient_retry(
-        lambda: llm.invoke(prompt), wall_timeout=NATIVE_SEARCH_WALL_TIMEOUT, label="targeted_search"
-    )
+    _ = is_benchmarking  # Retained in the call contract; API search returns sources, not market-odds analysis.
+    query = f"{crux}\n\nForecast question: {question_text}"
+    logger.info("Running targeted search via Tavily/Nimbleway")
+    _, result = await search_web_fallback(query)
     logger.info(f"Targeted search complete: {len(result)} chars")
     return result
 
@@ -342,19 +332,8 @@ async def _resolve_single_gap(
     *,
     is_benchmarking: bool,
 ) -> str:
-    """Run one OpenAI native web search (via OpenRouter) for a single gap.
-
-    Migrated 2026-06-25 off direct-Google grounded Gemini (google-genai, personal
-    GOOGLE_API_KEY) to native search on the Metaculus-donated key — this is the
-    dominant cost-saving change since the resolver fans out up to GAP_FILL_MAX_GAPS
-    calls per question. Runs GAP_FILL_RESOLVER_MODEL at GAP_FILL_RESOLVER_REASONING_EFFORT
-    (the same low as the main native_search provider): the workers run in parallel, so
-    latency is the slowest call, not the sum.
-
-    Raises on SDK/OpenRouter errors — the caller uses ``asyncio.gather(..., return_exceptions=True)``
-    so one failure doesn't kill the rest.
-    """
-    prompt = gap_fill_search_prompt(
+    """Resolve one factual gap with Tavily, falling back to Nimbleway."""
+    query = gap_fill_search_prompt(
         gap=gap["gap"],
         search_query=gap["search_query"],
         question_text=question.question_text,
@@ -362,13 +341,8 @@ async def _resolve_single_gap(
         fine_print=question.fine_print,
         is_benchmarking=is_benchmarking,
     )
-    llm = build_native_search_llm(
-        GAP_FILL_RESOLVER_MODEL, reasoning_effort=GAP_FILL_RESOLVER_REASONING_EFFORT, role="gap_fill_resolver"
-    )
-    # The same shared wall as native_search; a hard cap either way. See docs/research.md "v1 implementation notes".
-    return await invoke_with_transient_retry(
-        lambda: llm.invoke(prompt), wall_timeout=NATIVE_SEARCH_WALL_TIMEOUT, label="gap_fill_resolver"
-    )
+    _, result = await search_web_fallback(query)
+    return result
 
 
 async def run_gap_fill_pass(
@@ -380,7 +354,7 @@ async def run_gap_fill_pass(
 ) -> str:
     """Identify, triage and resolve factual gaps in first-pass research.
 
-    An analyzer call for the graded gap list, then ``triage_gaps``, then one parallel native web
+    An analyzer call for the graded gap list, then ``triage_gaps``, then one parallel Tavily/Nimbleway
     search per survivor. The models, the stage detail and the triage rules are in docs/research.md
     "v1: targeted gap-fill".
 

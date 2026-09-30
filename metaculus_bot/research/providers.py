@@ -42,12 +42,14 @@ from metaculus_bot.constants import (
     NATIVE_SEARCH_TIMEOUT,
     NATIVE_SEARCH_VERBOSITY_DEFAULT,
     NATIVE_SEARCH_VERBOSITY_ENV,
+    NIMBLE_API_KEY_ENV,
     OPENROUTER_API_KEY_ENV,
     PERPLEXITY_API_KEY_ENV,
     PERPLEXITY_RESEARCH_MODEL,
     PERPLEXITY_RESEARCH_MODEL_VIA_OPENROUTER,
     PERPLEXITY_WALL_TIMEOUT,
     RESEARCH_PROVIDER_ENV,
+    TAVILY_API_KEY_ENV,
 )
 from metaculus_bot.credit_telemetry import llm_call_metadata, plain_llm_key_alias
 from metaculus_bot.fallback_openrouter import build_llm_with_openrouter_fallback
@@ -55,6 +57,7 @@ from metaculus_bot.llm_retry import invoke_with_transient_retry
 from metaculus_bot.prompts import OUTSIDE_VENUE_MARKET_ODDS_POLICY, web_research_prompt
 from metaculus_bot.research.provider_diagnostics import record_provider_detail
 from metaculus_bot.research.raw_log import record_raw_research
+from metaculus_bot.research.web_search_api import search_web_fallback
 
 ResearchCallable = Callable[[MetaculusQuestion], Awaitable[str]]
 logger = logging.getLogger(__name__)
@@ -70,6 +73,20 @@ _OMITTED_API_KEY = _OmittedPerplexityApiKey()
 # ---------------------------------------------------------------------------
 # Concrete provider helpers
 # ---------------------------------------------------------------------------
+
+
+def _web_search_provider(*, preferred: str = "tavily") -> ResearchCallable:
+    async def _fetch(question: MetaculusQuestion) -> str:
+        provider, research = await search_web_fallback(question.question_text, preferred=preferred)
+        if research:
+            record_raw_research(
+                qid=getattr(question, "id_of_question", None),
+                provider=provider,
+                payload=research,
+            )
+        return research
+
+    return _fetch
 
 
 _ASKNEWS_GLOBAL_SEMAPHORE: asyncio.Semaphore | None = None
@@ -467,7 +484,7 @@ def build_native_search_llm(
     "OpenAI native search".
     """
     base_model = model_slug or os.getenv(NATIVE_SEARCH_MODEL_ENV, NATIVE_SEARCH_DEFAULT_MODEL)
-    model_with_search = f"openrouter/{base_model}"
+    model_with_search = base_model if base_model.startswith("openrouter/") else f"openrouter/{base_model}"
 
     kwargs: dict = {
         "model": model_with_search,
@@ -553,6 +570,14 @@ def _forced_provider_choice(
     is_benchmarking: bool,
 ) -> tuple[ResearchCallable, str] | None:
     """Resolve an explicit ``RESEARCH_PROVIDER`` override, or None to fall through to auto."""
+    if forced_lc in {"tavily", "web_search"}:
+        if not (os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV)):
+            raise ValueError(f"RESEARCH_PROVIDER={forced_lc} requires TAVILY_API_KEY or NIMBLE_API_KEY")
+        return _web_search_provider(), "web_search"
+    if forced_lc == "nimble":
+        if not os.getenv(NIMBLE_API_KEY_ENV):
+            raise ValueError("RESEARCH_PROVIDER=nimble requires NIMBLE_API_KEY")
+        return _web_search_provider(preferred="nimble"), "web_search"
     if forced_lc == "asknews":
         # Fail fast if creds missing to make misconfig obvious
         if not (os.getenv(ASKNEWS_CLIENT_ID_ENV) and os.getenv(ASKNEWS_SECRET_ENV)):
@@ -585,6 +610,9 @@ def _auto_provider_choice(
     is_benchmarking: bool,
 ) -> tuple[ResearchCallable, str]:
     """First provider whose credentials are present, in the documented priority order."""
+    if os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV):
+        return _web_search_provider(), "web_search"
+
     if os.getenv(ASKNEWS_CLIENT_ID_ENV) and os.getenv(ASKNEWS_SECRET_ENV):
         return _asknews_provider(), "asknews"
 
@@ -622,11 +650,10 @@ def choose_provider_with_name(
     """Return a research coroutine and its provider name.
 
     Priority order replicates pre-refactor behaviour:
-    1. AskNews (ASKNEWS_CLIENT_ID & ASKNEWS_SECRET)
-    2. Exa.ai (EXA_API_KEY)
-    3. Perplexity (PERPLEXITY_API_KEY)
-    4. Perplexity via OpenRouter (OPENROUTER_API_KEY)
-    5. Fallback stub that returns an empty string.
+    1. Tavily (TAVILY_API_KEY), falling back to Nimbleway (NIMBLE_API_KEY)
+    2. Nimbleway (NIMBLE_API_KEY) when Tavily is not configured
+    3. Legacy providers retained for explicit backwards-compatible overrides
+    4. Fallback stub that returns an empty string.
 
     ``RESEARCH_PROVIDER`` forces a specific provider; an unrecognized value falls
     through to the priority order above.

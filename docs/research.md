@@ -196,38 +196,16 @@ members at the bottom of `ResearchOrchestrator` are the orchestrator-attribute s
 
 ## Primary provider: a priority ladder
 
-There is always exactly one primary provider, chosen by
-`choose_provider_with_name` (`research/providers.py`). It walks a fixed
-priority order and returns the first provider whose credentials are present:
+There is exactly one primary search provider, chosen by `choose_provider_with_name`
+(`research/providers.py`): Tavily (`TAVILY_API_KEY`) is primary and Nimbleway Search
+(`NIMBLE_API_KEY`) is tried if Tavily fails or returns no usable results. When only
+Nimbleway is configured, it serves directly. Production workflows set
+`RESEARCH_PROVIDER=tavily` and wire both API keys. The explicit
+`RESEARCH_PROVIDER=nimble` override forces Nimbleway. Search itself does not call an
+LLM; model-based analysis uses `OPENROUTER_FREE_MODEL`.
 
-1. **AskNews** if `ASKNEWS_CLIENT_ID` and `ASKNEWS_SECRET` are set. This is the
-   production case.
-2. **Exa.ai** (`SmartSearcher`) if `EXA_API_KEY` is set: a generic rundown
-   (`_exa_provider`, `research/providers.py`).
-3. **Perplexity direct** if `PERPLEXITY_API_KEY` is set. Model:
-   `PERPLEXITY_RESEARCH_MODEL` (`constants.py`); the function is
-   `_perplexity_provider` (`research/providers.py`), and its prompt explicitly
-   asks for prediction-market consideration unless the run is benchmarking.
-4. **Perplexity via OpenRouter** if `OPENROUTER_API_KEY` is set. Same function
-   called with `use_open_router=True`, same model, prefixed for the OpenRouter
-   route: `PERPLEXITY_RESEARCH_MODEL_VIA_OPENROUTER`.
-5. **Empty stub** if none of the above: research is just the add-on providers.
-
-In production the AskNews credentials are present, so Exa and the two Perplexity
-routes never run as the primary. They are fallbacks, not peers. To force a
-specific primary regardless of credentials, set `RESEARCH_PROVIDER=<name>`
-(`asknews` / `exa` / `perplexity` / `openrouter`); any other value behaves as
-auto. Forcing `asknews` without the AskNews creds fails loudly rather than
-silently picking a different provider.
-
-Exa and Perplexity client construction and invocation live in
-`research/providers.py` (`_invoke_exa_research` and
-`_invoke_perplexity_research`). Both the standalone provider factories and the
-orchestrator use these helpers. Each caller retains its existing prompt and
-constructor options: the Exa factory explicitly disables citation formatting,
-while the orchestrator uses SDK defaults; the Perplexity factory omits `api_key`,
-while the orchestrator passes `None` for direct access or resolves the OpenRouter
-key. These distinctions remain part of the call contract.
+Legacy AskNews, Exa, and Perplexity adapters remain for old configurations but are
+not wired by production workflows.
 
 The Perplexity prompt interpolates `OUTSIDE_VENUE_MARKET_ODDS_POLICY` rather than restating the
 market-odds ask, because a second copy of it drifted once. This provider is the primary whenever
@@ -2078,9 +2056,8 @@ budget drops it: the fast path, or a research phase that ran out of budget):
    survivors at `GAP_FILL_MAX_GAPS`, all before any resolver call; the
    `GAP_FILL_V1_TRIAGE` marker records the counts. The rules, the decisions behind them
    and the receipts are in "v1 triage" below.
-3. Each survivor is resolved by a parallel OpenAI native web search
-   (`GAP_FILL_RESOLVER_MODEL` at `GAP_FILL_RESOLVER_REASONING_EFFORT`, via
-   OpenRouter on the donated key), briefed with the gap, the suggested query, the
+3. Each survivor is resolved by a parallel Tavily search with Nimbleway fallback,
+  briefed with the gap and suggested query, the
    question title, and since 2026-09-09 the resolution criteria and fine print, so a
    "which figure resolves this" gap is answered against the criteria rather than the
    title (receipt q44267, `docs/prompts.md` "Research-side prompt rules").
@@ -2089,11 +2066,8 @@ budget drops it: the fast path, or a research phase that ran out of budget):
    is the index into the raw record's `gaps` and `results`; a dropped gap's analyzer
    position is in the record's `dropped` list.
 
-The resolver migrated off direct-Google grounding on 2026-06-25, which is why
-`GOOGLE_API_KEY` is no longer required for gap-fill, and its model went sol → terra on
-2026-07-20: terra was preferred-or-within-noise in all three 2026-07 blind role audits
-at ~40-50% lower cost, which matters here because these searches are the single biggest
-research line item at ~44% of spend. The whole pass never raises
+The analyzer runs through OpenRouter Free; search uses Tavily and falls back to Nimbleway.
+The whole pass never raises
 (it returns `""` on any error) and appends its results under
 `## Targeted Gap-Fill (second pass)`.
 

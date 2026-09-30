@@ -800,16 +800,16 @@ CI.
 
 | Flag | Code default | Prod value | What it gates |
 |---|---|---|---|
-| `NATIVE_SEARCH_ENABLED` | off | `true` | OpenAI native web search via OpenRouter (model and reasoning effort from `NATIVE_SEARCH_DEFAULT_MODEL` / `NATIVE_SEARCH_REASONING_EFFORT_DEFAULT`), running in parallel with the primary provider |
-| `GEMINI_SEARCH_ENABLED` | off | `true` | First-party Google grounded search via the `google-genai` SDK |
+| `NATIVE_SEARCH_ENABLED` | off | `false` | Legacy OpenRouter native web search; production web research uses Tavily with Nimbleway fallback |
+| `GEMINI_SEARCH_ENABLED` | off | `false` | First-party Google grounded search via the `google-genai` SDK (not used by production workflows) |
 | `FINANCIAL_DATA_ENABLED` | off | `true` | yfinance + FRED data for questions an LLM classifier tags as financial |
 | `PREDICTION_MARKETS_ENABLED` | off | `true` | Polymarket / Kalshi / Manifold / PredictIt snapshot (suppressed under `is_benchmarking=True`) |
 | `RESOLUTION_SOURCE_ENABLED` | off | `true` | Tier-1 fetcher of URLs cited in the resolution criteria (plain HTTP + trafilatura, plus the free escalation rungs; no LLM call and no spend of its own) |
-| `RESOLUTION_SOURCE_URL_CONTEXT_ENABLED` | off | `true` | The one PAID rung of that fetcher's escalation ladder: when every free rung has failed to read a cited page, Gemini's `url_context` reader is asked to read it, billed to the operator's personal `GOOGLE_API_KEY`. ON in every bot workflow since 2026-09-04, so the resolution-source provider is a paid surface; changing it anywhere is a cost-gate decision for the operator, not an agent |
+| `RESOLUTION_SOURCE_URL_CONTEXT_ENABLED` | off | `false` | Google `url_context` reader; disabled in production so cited-page reads stay on the local fetch ladder |
 | `RESOLUTION_SOURCE_IMPERSONATE_ENABLED` | on | unset (so on) | The free TLS-impersonating retry of a direct-fetch 403 (`research/impersonated_fetch.py`, the `route=impersonate` rung and gap-fill v2's `fetch` / `read_document` ladders alike). The only research flag whose code default is ON, read through `impersonated_fetch.impersonation_enabled()`: it costs no key, no model call and no spend, fires on a host's 403 only, is memoized per host for the run once a host refuses the impersonated client, and sits behind the same wall-budget floor as the other one-GET rungs, so the flag is a kill switch rather than an opt-in. No bot workflow sets it. Set it to `false` to fall straight through to the archive and the paid reader on a 403 |
 | `TS_ANCHOR_ENABLED` | off | `true` | Time-series empirical P10/P50/P90 band from a question's own resolution series |
 | `TS_ANCHOR_CHART_ENABLED` | off | `false` | Chart-image side-channel for the anchor (vision message to base models); held off pending a text-vs-image A/B |
-| `RESEARCH_PROVIDER` | `auto` | unset | Forces one primary provider (`asknews`/`exa`/`perplexity`/`openrouter`) instead of the priority order |
+| `RESEARCH_PROVIDER` | `auto` | `tavily` | Forces the primary web search (`tavily` or `nimble`) instead of automatic credential selection |
 
 The primary provider is chosen by priority: AskNews (when
 `ASKNEWS_CLIENT_ID` + `ASKNEWS_SECRET` are set, the prod case), then Exa, then

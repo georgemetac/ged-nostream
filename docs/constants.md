@@ -267,6 +267,11 @@ personal is in `docs/operations.md` "API keys and the shared-vs-personal key mod
 Default on; a Mantic run sets it false and fails shut at startup if it is not, see
 `donated_openrouter_key_enabled` above.
 
+`OPENROUTER_FREE_MODEL` is the active LLM route (`openrouter/free`). OpenRouter selects an available
+free model per request; production workflows use `OPENROUTER_API_KEY` and disable donated-key
+routing. `TAVILY_API_KEY_ENV` and `NIMBLE_API_KEY_ENV` name the primary and fallback web-search API
+keys respectively.
+
 ### ASKNEWS_MAX_CONCURRENCY, ASKNEWS_MAX_RPS, ASKNEWS_MAX_TRIES, ASKNEWS_BACKOFF_SECS
 
 AskNews provider safety limits, global across all bots in the process. The defaults are
@@ -475,16 +480,8 @@ and 90th percentiles.
 
 ### NATIVE_SEARCH_DEFAULT_MODEL
 
-Default model for native search, without the `openrouter/` prefix. This is critical-path research,
-and the constant covers both the always-on native-search provider that runs on every question and
-the targeted search on the stacking path. Effort stays at the env default of low, see
-`NATIVE_SEARCH_REASONING_EFFORT_DEFAULT` below.
-
-Changed 2026-07-17 from sol to terra per the blind research-role audit in
-`scratch/research_role_audit_2026-07-17/`: terra won the native-search role first, sol second, luna
-third, with the verdict "MARGINAL EDGE". Changed again 2026-09-22, terra to `gpt-6-sol`: GPT-6 shipped
-with no Terra successor, so every Terra role moved to Sol 6 at the same (low) effort.
-Updated 2026-09-29 to `gpt-6.1-sol`, retaining low effort and the existing budgets.
+Default model route for the legacy native-search caller. Production web search uses Tavily with
+Nimbleway fallback; native model search is disabled in production workflows.
 
 ### NATIVE_SEARCH_MAX_TOKENS
 
@@ -534,11 +531,8 @@ Native search web options, passed to the OpenRouter plugins. Context size accept
 
 ### PERPLEXITY_RESEARCH_MODEL, PERPLEXITY_RESEARCH_MODEL_VIA_OPENROUTER
 
-The model both Perplexity call sites use: the provider factory in `research/providers.py` and the
-orchestrator's AskNews-failure fallback. A single constant because the two sites each carried their
-own literal and silently drifted, with `providers.py` pinned to Perplexity's non-reasoning tier while
-the orchestrator used the reasoning one. The direct-provider route takes the bare slug; the
-OpenRouter route takes it prefixed, which is what `get_openrouter_api_key` keys its routing on.
+Legacy compatibility call sites resolve to `OPENROUTER_FREE_MODEL`; production research search no
+longer uses Perplexity model APIs.
 
 ### PERPLEXITY_WALL_TIMEOUT
 
@@ -1165,12 +1159,13 @@ calls.
 The reader's per-attempt timeout is not a constant here because it is derived from the total in-thread
 budget, as `_READ_DOCUMENT_HTTP_TIMEOUT_MS` in `research/agentic/tool_backends.py`, where the arithmetic
 lives. That call runs under `asyncio.to_thread`, so its outer `wait_for` cannot cancel it and the retry has
-to fit inside today's budget rather than beside it.
+to fit inside today's budget rather than beside it. Production workflows do not configure its Google API
+key and leave the Google-specific reader disabled.
 
 ## Second-pass gap-fill
 
-After first-pass research completes, a cheap analyzer identifies up to `GAP_FILL_MAX_GAPS` factual gaps and
-each is resolved by a parallel OpenAI native web search, see `GAP_FILL_RESOLVER_MODEL` below. The whole pass
+After first-pass research completes, an OpenRouter Free analyzer identifies up to `GAP_FILL_MAX_GAPS` factual gaps and
+each is resolved by a parallel Tavily/Nimbleway search, see `GAP_FILL_RESOLVER_MODEL` below. The whole pass
 fails soft: the forecast proceeds with first-pass research alone if any stage errors out.
 
 ### GAP_FILL_ANALYZER_MODEL
@@ -1178,10 +1173,7 @@ fails soft: the forecast proceeds with first-pass research alone if any stage er
 Non-grounded gap-listing. It reads the first-pass research and emits a JSON list of up to
 `GAP_FILL_MAX_GAPS` factual gaps under the tight `GAP_FILL_ANALYZER_WALL_TIMEOUT` cap, which soft-fails
 silently on breach, so low effort is the latency-safe choice: the task is decomposition rather than deep
-judgment. Grounded search resolution still uses google-genai directly via `gemini_search_provider`, because
-that path needs the search index. Changed 2026-09-22, terra to `gpt-6-sol`: GPT-6 shipped with no Terra
-successor, so every Terra role moved to Sol 6 at the same (low) effort.
-Updated 2026-09-29 to `gpt-6.1-sol`, retaining low effort and the existing budgets.
+judgment. The analyzer uses `OPENROUTER_FREE_MODEL`; its request retains strict JSON-schema output.
 
 ### GAP_FILL_MAX_GAPS
 

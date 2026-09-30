@@ -8,6 +8,7 @@ from typing import Any
 
 from forecasting_tools import GeneralLlm
 
+from metaculus_bot.constants import OPENROUTER_FREE_MODEL
 from metaculus_bot.fallback_openrouter import build_llm_with_openrouter_fallback
 
 __all__ = [
@@ -68,6 +69,8 @@ def forecaster_role(model: str) -> str:
     across model rotations — a per-model role would start a new time series at every swap
     and defeat the era-over-era cost comparison this exists for.
     """
+    if model == OPENROUTER_FREE_MODEL:
+        return "forecaster:free"
     parts = model.split("/")
     if len(parts) < 3 or parts[0] != "openrouter":
         raise ValueError(f"forecaster_role expects an openrouter/<vendor>/<model> slug, got {model!r}")
@@ -119,7 +122,7 @@ FORECASTER_LLMS: list[GeneralLlm] = [
     # Anthropic slot; a single prod-prompt timing probe checked it against FORECASTER_SOFT_DEADLINE.
     # 2026-09-29: gpt-6-sol -> gpt-6.1-sol; effort and deadline settings unchanged.
     _forecaster_slot(
-        "openrouter/openai/gpt-6.1-sol",
+        OPENROUTER_FREE_MODEL,
         reasoning={"effort": "xhigh"},
     ),
     # Anthropic slot. 2026-07-15: enabled:True (provider-default adaptive thinking)
@@ -133,7 +136,7 @@ FORECASTER_LLMS: list[GeneralLlm] = [
     # migration guide), so this slot had been running at effort HIGH, not the xhigh declared here,
     # since at least 2026-02. Never send verbosity alongside reasoning.effort on an Anthropic slot.
     _forecaster_slot(
-        "openrouter/anthropic/claude-opus-5.5",
+        OPENROUTER_FREE_MODEL,
         reasoning={"effort": "xhigh"},
     ),
     # Google slot. No explicit reasoning-effort kwarg — gemini-3.1-pro-preview has
@@ -142,7 +145,7 @@ FORECASTER_LLMS: list[GeneralLlm] = [
     # fallback_openrouter (the donated key routes it through a free-tier Google
     # AI Studio BYOK integration with quota 0, so it would 429 there); see the
     # TODO(gemini-3.1-pro-donated) tag pending the Metaculus-side BYOK fix.
-    _forecaster_slot("openrouter/google/gemini-3.1-pro-preview"),
+    _forecaster_slot(OPENROUTER_FREE_MODEL),
 ]
 
 
@@ -175,7 +178,7 @@ FORECASTER_MODEL_NAMES: list[str] = [_forecaster_display_name(llm) for llm in FO
 # moves to Sol 6 at the same (low) effort it ran at.
 # 2026-09-29: gpt-6-sol -> gpt-6.1-sol; role settings unchanged.
 SUMMARIZER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
-    "openrouter/openai/gpt-6.1-sol",
+    OPENROUTER_FREE_MODEL,
     role="summarizer",
     reasoning={"effort": "low"},
     **{**UTILITY_MODEL_CONFIG, "allowed_tries": 1},
@@ -191,7 +194,7 @@ SUMMARIZER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 # 2026-09-22: gpt-5.6-luna -> gpt-6-luna (GPT-6 release), now $0.10/$0.50 per 1M.
 # Effort unchanged at low.
 PARSER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
-    "openrouter/openai/gpt-6-luna",
+    OPENROUTER_FREE_MODEL,
     role="parser",
     reasoning={"effort": "low"},
     **UTILITY_MODEL_CONFIG,
@@ -224,7 +227,7 @@ STACKER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
     # OpenRouter effort enum: none/minimal/low/medium/high/xhigh/max.
     # effort=xhigh matches the forecaster slot; "max" (one tier above xhigh) is
     # deliberately held back for latency — the stacker runs under STACKER_SOFT_DEADLINE.
-    "openrouter/anthropic/claude-opus-5.5",
+    OPENROUTER_FREE_MODEL,
     role="stacker",
     reasoning={"effort": "xhigh"},
     **{**REASONING_MODEL_CONFIG, "allowed_tries": 1},
@@ -239,7 +242,7 @@ STACKER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 # Anthropic stall doesn't take both attempts down. Tighter timeout and single try
 # since we're already running late on the critical path by the time this fires.
 STACKER_FALLBACK_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
-    "openrouter/openai/gpt-6.1-sol",
+    OPENROUTER_FREE_MODEL,
     role="stacker_fallback",
     reasoning={"effort": "xhigh"},
     **{**REASONING_MODEL_CONFIG, "allowed_tries": 1, "timeout": 300},
@@ -286,7 +289,7 @@ STACKER_FALLBACK_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 # RANKED_ARM_RESULTS.md). No max_tokens since 2026-09-22 (operator): a TRUNCATED ranking is a
 # fail-open that loses the whole ranking, and MARKET_RANKER_WALL_TIMEOUT already bounds a runaway.
 MARKET_RANKER_LLM_CONFIG: dict = {
-    "model": "openrouter/openai/gpt-6-luna",
+    "model": OPENROUTER_FREE_MODEL,
     "role": "market_ranker",
     "temperature": None,
     "reasoning_effort": "low",
@@ -299,7 +302,7 @@ MARKET_RANKER_LLM_CONFIG: dict = {
 # a deterministic query set, so its failure costs recall nothing. Measured completion max 588
 # tokens including reasoning. No max_tokens since 2026-09-22: MARKET_QUERY_AUTHOR_WALL_TIMEOUT bounds it.
 MARKET_QUERY_AUTHOR_LLM_CONFIG: dict = {
-    "model": "openrouter/openai/gpt-6-luna",
+    "model": OPENROUTER_FREE_MODEL,
     "role": "market_query_author",
     "temperature": None,
     "reasoning_effort": "low",
@@ -323,7 +326,7 @@ MARKET_QUERY_AUTHOR_LLM_CONFIG: dict = {
 # moves to Sol 6 at the same (low) effort it ran at.
 # 2026-09-29: gpt-6-sol -> gpt-6.1-sol; role settings unchanged.
 DISAGREEMENT_ANALYZER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
-    "openrouter/openai/gpt-6.1-sol",
+    OPENROUTER_FREE_MODEL,
     role="crux_analyzer",
     reasoning={"effort": "low"},
     **{**UTILITY_MODEL_CONFIG, "allowed_tries": 1},

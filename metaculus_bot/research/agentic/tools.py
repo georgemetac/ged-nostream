@@ -34,13 +34,12 @@ from urllib.parse import urlparse
 
 from metaculus_bot.constants import (
     ASKNEWS_BACKOFF_SECS,  # noqa: F401  # re-export: tests read the AskNews retry ladder's constants off this module
-    ASKNEWS_CLIENT_ID_ENV,
     ASKNEWS_MAX_TRIES,  # noqa: F401  # re-export: see ASKNEWS_BACKOFF_SECS above
-    ASKNEWS_SECRET_ENV,
     DOCUMENT_DIGEST_TOP_K,
-    EXA_API_KEY_ENV,
     GOOGLE_API_KEY_ENV,
+    NIMBLE_API_KEY_ENV,
     RESOLUTION_SOURCE_URL_CONTEXT_MAX_ATTEMPTS,
+    TAVILY_API_KEY_ENV,
 )
 from metaculus_bot.research import document_cache, document_text, fetch_markers, source_presentation
 from metaculus_bot.research.agentic import ladder_adapter, local_document
@@ -52,10 +51,6 @@ from metaculus_bot.research.agentic.fetch_outcomes import (
 )
 from metaculus_bot.research.agentic.image_tools import ImageViewState, view_acquired_image, view_image
 from metaculus_bot.research.agentic.tool_backends import (
-    _call_asknews_search,
-    _call_exa_search,
-    _format_asknews_results,
-    _format_exa_results,
     _run_document_read_sync,
 )
 from metaculus_bot.research.agentic.tool_descriptions import (
@@ -87,6 +82,7 @@ from metaculus_bot.research.image_leads import render_image_leads
 from metaculus_bot.research.resolution_fetch_result import FetchResult
 from metaculus_bot.research.robots_policy import ROBOTS_FETCH_TIMEOUT_S, google_extended_blocks_url, robots_host
 from metaculus_bot.research.source_documents import ParsedSource
+from metaculus_bot.research.web_search_api import search_web_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -266,28 +262,23 @@ def _log_ladder_markers(result: FetchResult) -> None:
 
 
 async def search_news(query: str) -> ToolOutcome:
-    client_id = os.getenv(ASKNEWS_CLIENT_ID_ENV)
-    secret = os.getenv(ASKNEWS_SECRET_ENV)
-    if not client_id or not secret:
-        return _format_fetch_error(
-            f"AskNews credentials are not configured; set {ASKNEWS_CLIENT_ID_ENV} and {ASKNEWS_SECRET_ENV}.",
-            method="news",
-        )
+    if not (os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV)):
+        return _format_fetch_error("TAVILY_API_KEY or NIMBLE_API_KEY is not configured.", method="news")
     try:
-        articles = await _call_asknews_search(query)
+        _, results = await search_web_fallback(query, topic="news")
     except Exception as exc:  # noqa: BLE001  # HARNESS-SCAN-EXEMPT-broad-except  # tool-handler soft-fail boundary: a dead provider becomes a tool result the driver can read, never a loop crash
-        return _format_fetch_error(f"AskNews search failed: {type(exc).__name__}: {exc}", method="news")
-    return ToolOutcome(content_markdown=_format_asknews_results(articles), method="news")
+        return _format_fetch_error(f"News search failed: {type(exc).__name__}: {exc}", method="news")
+    return ToolOutcome(content_markdown=results or "No news search results found.", method="news")
 
 
 async def search_web(query: str, end_published_date: str | None = None) -> ToolOutcome:
-    if not os.getenv(EXA_API_KEY_ENV):
-        return _format_fetch_error(f"Exa API key is not configured; set {EXA_API_KEY_ENV}.", method="search")
+    if not (os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV)):
+        return _format_fetch_error("TAVILY_API_KEY or NIMBLE_API_KEY is not configured.", method="search")
     try:
-        results = await _call_exa_search(query, end_published_date)
+        _, results = await search_web_fallback(query, end_date=end_published_date)
     except Exception as exc:  # noqa: BLE001  # HARNESS-SCAN-EXEMPT-broad-except  # tool-handler soft-fail boundary: a dead provider becomes a tool result the driver can read, never a loop crash
-        return _format_fetch_error(f"Exa search failed: {type(exc).__name__}: {exc}", method="search")
-    return ToolOutcome(content_markdown=_format_exa_results(results), method="search")
+        return _format_fetch_error(f"Web search failed: {type(exc).__name__}: {exc}", method="search")
+    return ToolOutcome(content_markdown=results or "No web search results found.", method="search")
 
 
 def _generic_document_ask(question_topic: str) -> str:

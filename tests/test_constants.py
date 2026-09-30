@@ -96,12 +96,12 @@ class TestNativeSearchDefaults:
         scratch/research_role_audit_2026-07-17/ — terra 1st, sol 2nd; then the
         2026-09-22 GPT-6 migration, where Terra has no GPT-6 successor so the
         role moved to Sol, followed by the 2026-09-29 Sol 6.1 migration)."""
-        assert NATIVE_SEARCH_DEFAULT_MODEL == "openai/gpt-6.1-sol"
+        assert NATIVE_SEARCH_DEFAULT_MODEL == "openrouter/free"
 
     def test_gap_fill_sol_defaults_are_gpt_6_1(self) -> None:
-        assert GAP_FILL_ANALYZER_MODEL == "openrouter/openai/gpt-6.1-sol"
-        assert GAP_FILL_RESOLVER_MODEL == "openai/gpt-6.1-sol"
-        assert GAP_FILL_V2_DRIVER_MODEL == "openai/gpt-6.1-sol"
+        assert GAP_FILL_ANALYZER_MODEL == "openrouter/free"
+        assert GAP_FILL_RESOLVER_MODEL == "openrouter/free"
+        assert GAP_FILL_V2_DRIVER_MODEL == "openrouter/free"
 
     def test_native_search_reasoning_effort_default_is_low(self):
         """Low effort gives ~4.5× faster wall-clock vs medium on the v3 bench

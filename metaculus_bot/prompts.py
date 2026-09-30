@@ -2185,6 +2185,9 @@ def gap_fill_search_prompt(
         This gap is from forecasting:
         {question_text}
 
+        Forecast question:
+        {question_text}
+
         Resolution criteria (what the question actually resolves on):
         {resolution_block}{fine_print_block}
 

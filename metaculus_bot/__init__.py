@@ -3,7 +3,36 @@
 This package will gradually house refactored modules such as CLI, prompts, utils, etc.
 """
 
+import asyncio
 import os
+
+
+def _patch_py314_nest_asyncio_task_api() -> None:
+    """Restore a working task lookup under Python 3.14 + forecasting-tools' nest_asyncio patch.
+
+    On Python 3.14, nest_asyncio patches the event loop in a way that leaves
+    ``asyncio.current_task()`` returning ``None`` even when a coroutine is running,
+    and ``asyncio.wait_for()`` then raises ``RuntimeError("Timeout should be used inside a task")``.
+    The stdlib Python-level hook ``asyncio.tasks._py_current_task`` still reports the active task,
+    so we restore that as the public task lookup before any forecasting_tools import triggers the broken patch.
+    """
+    py_current_task = getattr(asyncio.tasks, "_py_current_task", None)
+    if py_current_task is None:
+        return
+
+    def _compat_current_task(loop=None):
+        try:
+            if loop is not None:
+                return py_current_task(loop=loop)
+            return py_current_task()
+        except RuntimeError:
+            return None
+
+    asyncio.current_task = _compat_current_task
+    asyncio.tasks.current_task = _compat_current_task
+
+
+_patch_py314_nest_asyncio_task_api()
 
 # Disable litellm's aiohttp transport (default since litellm v1.71.x). Under
 # concurrent async bursts that transport raises near-instant connection failures

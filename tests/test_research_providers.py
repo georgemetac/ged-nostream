@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from metaculus_bot.research.providers import is_asknews_subscription_error
+from metaculus_bot.research.providers import choose_provider_with_name, is_asknews_subscription_error
 
 
 class ForbiddenError(Exception):
@@ -37,3 +37,27 @@ class ForbiddenError(Exception):
 def test_is_asknews_subscription_error(exc: BaseException, expected: bool) -> None:
     """Match only the AskNews subscription-inactive error signature."""
     assert is_asknews_subscription_error(exc) is expected
+
+
+def test_auto_selection_prefers_tavily_over_legacy_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TAVILY_API_KEY", "tavily-test")
+    monkeypatch.setenv("NIMBLE_API_KEY", "nimble-test")
+    monkeypatch.setenv("ASKNEWS_CLIENT_ID", "legacy-client")
+    monkeypatch.setenv("ASKNEWS_SECRET", "legacy-secret")
+    monkeypatch.delenv("RESEARCH_PROVIDER", raising=False)
+
+    provider, name = choose_provider_with_name()
+
+    assert callable(provider)
+    assert name == "web_search"
+
+
+def test_forced_nimble_selection_uses_nimble_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RESEARCH_PROVIDER", "nimble")
+    monkeypatch.setenv("NIMBLE_API_KEY", "nimble-test")
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+    provider, name = choose_provider_with_name()
+
+    assert callable(provider)
+    assert name == "web_search"

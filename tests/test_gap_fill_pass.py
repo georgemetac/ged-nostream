@@ -92,19 +92,13 @@ def _gap_without(field: str) -> dict[str, Any]:
 
 @contextmanager
 def _patch_resolver(invoke: AsyncMock) -> Iterator[MagicMock]:
-    """Patch ``build_native_search_llm`` so the per-gap resolver uses ``invoke``.
+    """Patch the shared search API so the per-gap resolver uses ``invoke``."""
 
-    The resolver now does ``llm = build_native_search_llm(...); await llm.invoke(prompt)``.
-    Tests historically asserted against the per-gap search AsyncMock directly, so
-    we wrap it in a stub LLM whose ``.invoke`` is that AsyncMock — the prompt is
-    still captured on ``invoke`` exactly as before. Yields the builder mock so
-    callers can assert the model slug / reasoning_effort args.
-    """
-    stub_llm = MagicMock()
-    stub_llm.invoke = invoke
-    builder = MagicMock(return_value=stub_llm)
-    with patch("metaculus_bot.research.targeted.build_native_search_llm", builder):
-        yield builder
+    async def search(query: str, **_: Any) -> tuple[str, str]:
+        return "tavily", await invoke(query)
+
+    with patch("metaculus_bot.research.targeted.search_web_fallback", side_effect=search) as searcher:
+        yield searcher
 
 
 # ---------------------------------------------------------------------------
@@ -989,30 +983,13 @@ async def test_benchmarking_flag_threaded_to_analyzer_and_searches() -> None:
     fake_analyzer.assert_awaited_once()
     assert fake_analyzer.call_args.kwargs["is_benchmarking"] is True
 
-    # Each per-gap search prompt includes the benchmarking warning string.
+    # Search uses source queries; benchmarking mode never adds prediction-market prompts.
     for call in fake_search.call_args_list:
-        prompt = call.args[0]
-        assert "benchmarking run" in prompt
+        assert "Forecast question:" in call.args[0]
 
 
 @pytest.mark.asyncio
-async def test_resolver_builds_native_search_llm_with_sol_low() -> None:
-    """The per-gap resolver runs OpenAI native search on gpt-6.1-sol at low effort.
-
-    Locks the 2026-06-25 migration off direct-Google grounded Gemini: every gap
-    resolution must build a native-search LLM with the GAP_FILL_RESOLVER_MODEL
-    slug (gpt-5.6-terra since the 2026-07-20 sol→terra flip, then gpt-6-sol on the
-    2026-09-22 GPT-6 migration since Terra has no GPT-6 successor, and gpt-6.1-sol on
-    2026-09-29). Effort stays low
-    (Round-2): the resolver was the ~5-min critical-path bottleneck, and low is
-    ~4.5× faster (native_search v3 bench). Pinned to the constant so it stays a
-    canary if either the model or effort changes again.
-    """
-    from metaculus_bot.constants import (
-        GAP_FILL_RESOLVER_MODEL,
-        GAP_FILL_RESOLVER_REASONING_EFFORT,
-    )  # HARNESS-SCAN-EXEMPT-function-level-import  # constants pinned in the one test that asserts them
-
+async def test_resolver_searches_the_gap_with_tavily_or_nimble() -> None:
     question = MockQuestion()
     gaps = [_gap("g1", "q1", "wm1")]
     fake_search = AsyncMock(return_value="resolved")
@@ -1024,40 +1001,29 @@ async def test_resolver_builds_native_search_llm_with_sol_low() -> None:
         out = await run_gap_fill_pass(_q(question), "first-pass research")
 
     assert "resolved" in out
-    builder.assert_called_once()
-    call = builder.call_args
-    model_arg = call.args[0] if call.args else call.kwargs.get("model_slug")
-    assert model_arg == GAP_FILL_RESOLVER_MODEL == "openai/gpt-6.1-sol"
-    assert call.kwargs["reasoning_effort"] == GAP_FILL_RESOLVER_REASONING_EFFORT == "low"
+    builder.assert_awaited_once()
+    query = builder.await_args.args[0]
+    assert "q1" in query
+    assert "Forecast question:" in query
 
 
 @pytest.mark.asyncio
-async def test_resolver_enforces_wall_clock_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A hung per-gap resolver invoke must be bounded by NATIVE_SEARCH_WALL_TIMEOUT.
-
-    The 2026-06-25 migration added ``asyncio.wait_for(llm.invoke(...), timeout=...)``
-    to ``_resolve_single_gap`` — a backstop the old google-genai grounded path
-    lacked. It shares the build_native_search_llm config (and therefore the same
-    OpenRouter whitespace-drip pathology, 2026-05-20 incident) with the targeted
-    search and native_search provider, whose backstop is locked in by
-    test_targeted_research.test_enforces_wall_clock_timeout. This mirrors that
-    test for the gap-fill resolver: a resolver that sleeps past the cap is
-    cancelled, the TimeoutError is captured by gather(return_exceptions=True),
-    and the pass soft-fails to "" rather than hanging the whole question.
-    """
-    monkeypatch.setattr("metaculus_bot.research.targeted.NATIVE_SEARCH_WALL_TIMEOUT", 0.05)
+async def test_resolver_enforces_web_search_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stuck API search is bounded and soft-fails the optional gap-fill pass."""
+    monkeypatch.setattr("metaculus_bot.research.web_search_api.WEB_SEARCH_API_TIMEOUT_S", 0.05)
+    monkeypatch.setenv("TAVILY_API_KEY", "test-key")
 
     question = MockQuestion()
     gaps = [_gap("g1", "q1", "wm1")]
 
-    async def hang(_prompt: str) -> str:
+    async def hang(_query: str, **_: Any) -> str:
         """Sleep well past the 0.05s wall-clock cap; the test passes only if wait_for cancels it first."""
         await asyncio.sleep(5)
-        return "should never reach here"
+        return "tavily", "should never reach here"
 
     with (
         patch("metaculus_bot.research.targeted._run_analyzer", AsyncMock(return_value=gaps)),
-        _patch_resolver(AsyncMock(side_effect=hang)),
+        patch("metaculus_bot.research.web_search_api._search_tavily", side_effect=hang),
     ):
         out = await run_gap_fill_pass(_q(question), "first-pass research")
 

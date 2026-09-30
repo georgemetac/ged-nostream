@@ -194,7 +194,7 @@ RESEARCH_SECTION_CHAR_LIMIT: int = 44_999
 SUMMARY_SECTION_CHAR_LIMIT: int = 13_999
 COMMENT_CHAR_LIMIT: int = 149_999
 
-RESEARCH_PROVIDER_ENV: str = "RESEARCH_PROVIDER"  # auto|asknews|exa|perplexity|openrouter, case-insensitive
+RESEARCH_PROVIDER_ENV: str = "RESEARCH_PROVIDER"  # auto|tavily|nimble, case-insensitive
 
 # A URL list here replaces cli.py's EXAMPLE_QUESTIONS. Receipt: docs/constants.md "TEST_QUESTIONS_OVERRIDE_ENV".
 TEST_QUESTIONS_OVERRIDE_ENV: str = "TEST_QUESTIONS_OVERRIDE"
@@ -202,6 +202,10 @@ TEST_QUESTIONS_OVERRIDE_ENV: str = "TEST_QUESTIONS_OVERRIDE"
 # Named so the literals are not duplicated. Receipt: docs/constants.md "OPENROUTER_API_KEY_ENV".
 OPENROUTER_API_KEY_ENV: str = "OPENROUTER_API_KEY"
 OAI_ANTH_OPENROUTER_KEY_ENV: str = "OAI_ANTH_OPENROUTER_KEY"
+OPENROUTER_FREE_MODEL: str = "openrouter/free"
+TAVILY_API_KEY_ENV: str = "TAVILY_API_KEY"
+NIMBLE_API_KEY_ENV: str = "NIMBLE_API_KEY"
+WEB_SEARCH_API_TIMEOUT_S: float = 20.0
 ASKNEWS_CLIENT_ID_ENV: str = "ASKNEWS_CLIENT_ID"
 ASKNEWS_SECRET_ENV: str = "ASKNEWS_SECRET"  # noqa: S105  # env var NAME, not a credential
 EXA_API_KEY_ENV: str = "EXA_API_KEY"
@@ -372,7 +376,7 @@ NATIVE_SEARCH_MODEL_ENV: str = "NATIVE_SEARCH_MODEL"
 # Critical-path research; sol->terra 2026-07-17, terra->sol (GPT-6, no Terra successor) 2026-09-22.
 # gpt-6-sol -> gpt-6.1-sol 2026-09-29; request settings unchanged.
 # Receipt: docs/constants.md "NATIVE_SEARCH_DEFAULT_MODEL".
-NATIVE_SEARCH_DEFAULT_MODEL: str = "openai/gpt-6.1-sol"
+NATIVE_SEARCH_DEFAULT_MODEL: str = OPENROUTER_FREE_MODEL
 NATIVE_SEARCH_MAX_TOKENS: int = 16_000  # no temperature / top_p: temperature=None, so litellm omits it
 # The litellm per-request timeout, 240->360 on 2026-05-17. Receipt: docs/constants.md "NATIVE_SEARCH_TIMEOUT".
 NATIVE_SEARCH_TIMEOUT: int = 360
@@ -389,8 +393,8 @@ NATIVE_SEARCH_CONTEXT_SIZE: str = "high"  # "low", "medium", "high"
 # --- Perplexity (fallback research provider; dormant while AskNews wins the ladder) ---
 
 # One constant; the two call sites drifted apart. Receipt: docs/constants.md "PERPLEXITY_RESEARCH_MODEL".
-PERPLEXITY_RESEARCH_MODEL: str = "perplexity/sonar-reasoning-pro"
-PERPLEXITY_RESEARCH_MODEL_VIA_OPENROUTER: str = f"openrouter/{PERPLEXITY_RESEARCH_MODEL}"
+PERPLEXITY_RESEARCH_MODEL: str = OPENROUTER_FREE_MODEL
+PERPLEXITY_RESEARCH_MODEL_VIA_OPENROUTER: str = OPENROUTER_FREE_MODEL
 
 # Both call sites had NO wall bound at all. Receipt: docs/constants.md "PERPLEXITY_WALL_TIMEOUT".
 PERPLEXITY_WALL_TIMEOUT: float = 300.0
@@ -468,7 +472,7 @@ URL_CONTEXT_SIZE_GATE_TOKENS: int = 100_000
 
 # "Luna is dirt cheap and medium will still be fast enough" (operator). luna->GPT-6 luna 2026-09-22,
 # effort unchanged pending a decision. Receipt: docs/constants.md "PAGE_DIGEST_EXTRACTOR_MODEL".
-PAGE_DIGEST_EXTRACTOR_MODEL: str = "openrouter/openai/gpt-6-luna"
+PAGE_DIGEST_EXTRACTOR_MODEL: str = OPENROUTER_FREE_MODEL
 PAGE_DIGEST_EXTRACTOR_EFFORT: str = "medium"
 # 20 -> 30 s 2026-09-22; gpt-6-luna digests measured 1.4-4.8 s. Receipt: docs/constants.md "PAGE_DIGEST_EXTRACTOR_TIMEOUT_S".
 PAGE_DIGEST_EXTRACTOR_TIMEOUT_S: float = 30.0
@@ -557,7 +561,7 @@ GAP_FILL_ENABLED_ENV: str = "GAP_FILL_ENABLED"
 # Non-grounded decomposition under a tight wall. terra->sol (GPT-6, no Terra successor) 2026-09-22.
 # gpt-6-sol -> gpt-6.1-sol 2026-09-29; request settings unchanged.
 # Receipt: docs/constants.md "GAP_FILL_ANALYZER_MODEL".
-GAP_FILL_ANALYZER_MODEL: str = "openrouter/openai/gpt-6.1-sol"
+GAP_FILL_ANALYZER_MODEL: str = OPENROUTER_FREE_MODEL
 # 5 -> 4 on 2026-07-20; do NOT go below 4. Receipt: docs/constants.md "GAP_FILL_MAX_GAPS".
 GAP_FILL_MAX_GAPS: int = 4
 GAP_FILL_ANALYZER_TIMEOUT: int = 120  # tight, so a hung analyzer cannot hold a research slot
@@ -566,7 +570,7 @@ GAP_FILL_ANALYZER_WALL_TIMEOUT: int = 135
 GAP_FILL_MIN_RESEARCH_CHARS: int = 200  # under this every provider likely soft-failed
 # Moved off grounded Gemini 2026-06-25; sol->terra 2026-07-20; terra->sol (GPT-6, no Terra successor)
 # 2026-09-22; gpt-6-sol -> gpt-6.1-sol 2026-09-29. Receipt: docs/constants.md "GAP_FILL_RESOLVER_MODEL".
-GAP_FILL_RESOLVER_MODEL: str = "openai/gpt-6.1-sol"
+GAP_FILL_RESOLVER_MODEL: str = OPENROUTER_FREE_MODEL
 GAP_FILL_RESOLVER_REASONING_EFFORT: str = "low"
 
 # --- Agentic gap-fill v2 (bounded research loop) ---
@@ -585,7 +589,7 @@ GAP_FILL_V2_TOOL_BUDGET_LINE_RESERVE_CHARS: int = 512
 # terra-low won the blind 5-arm replay eval 2026-07-17; terra->sol (GPT-6, no Terra successor)
 # 2026-09-22; gpt-6-sol -> gpt-6.1-sol 2026-09-29, effort default unchanged at low.
 # Receipt: docs/constants.md "GAP_FILL_V2_DRIVER_MODEL".
-GAP_FILL_V2_DRIVER_MODEL: str = os.getenv("GAP_FILL_V2_DRIVER_MODEL") or "openai/gpt-6.1-sol"
+GAP_FILL_V2_DRIVER_MODEL: str = os.getenv("GAP_FILL_V2_DRIVER_MODEL") or OPENROUTER_FREE_MODEL
 GAP_FILL_V2_DRIVER_EFFORT: str = os.getenv("GAP_FILL_V2_DRIVER_EFFORT") or "low"
 # A wrong id, or a robots-gated host, kills the rung silently. Receipt: docs/constants.md "GAP_FILL_V2_READER_MODEL".
 GAP_FILL_V2_READER_MODEL: str = os.getenv("GAP_FILL_V2_READER_MODEL") or "gemini-3.8-flash"
@@ -605,7 +609,7 @@ FINANCIAL_DATA_ENABLED_ENV: str = "FINANCIAL_DATA_ENABLED"
 FRED_API_KEY_ENV: str = "FRED_API_KEY"
 # Capability-saturated, so the cheapest capable tier. luna->GPT-6 luna 2026-09-22.
 # Receipt: docs/constants.md "FINANCIAL_CLASSIFIER_MODEL".
-FINANCIAL_CLASSIFIER_MODEL: str = "openrouter/openai/gpt-6-luna"
+FINANCIAL_CLASSIFIER_MODEL: str = OPENROUTER_FREE_MODEL
 FINANCIAL_CLASSIFIER_TIMEOUT: int = 30
 # Never spent as a bare period="Nd". Receipt: docs/constants.md "FINANCIAL_YFINANCE_LOOKBACK_DAYS".
 FINANCIAL_YFINANCE_LOOKBACK_DAYS: int = 390
@@ -696,7 +700,7 @@ BACKTEST_DEFAULT_MIN_FORECASTERS: int = 40
 BACKTEST_OVERFETCH_RATIO: int = 3
 # Saturated backtest-only screen, cheapest capable tier. luna->GPT-6 luna 2026-09-22.
 # Receipt: docs/constants.md "LEAKAGE_DETECTOR_MODEL".
-LEAKAGE_DETECTOR_MODEL: str = "openrouter/openai/gpt-6-luna"
+LEAKAGE_DETECTOR_MODEL: str = OPENROUTER_FREE_MODEL
 
 # --- Per-type stacking gates ---
 
