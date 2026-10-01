@@ -21,7 +21,7 @@ Last verified against the code on 2026-09-04.
 ## Roster-change history
 
 **2026-09-30 (Mantic-specific free roster):** After a Mantic run dropped all three
-`openrouter/free` forecaster slots across seven questions, the operator requested explicit
+explicit free-model forecaster slots across seven questions, the operator requested explicit
 free-model routing for Mantic. `MANTIC_FORECASTER_MODELS` now pins Nemotron 3 Nano Omni,
 Gemma 4 31B, and Qwen 3.8 27B; the live OpenRouter catalog listed all three at zero input/output
 price on this date. Their common completion cap is 32,768 tokens, the lowest advertised maximum

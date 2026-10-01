@@ -9,6 +9,8 @@ update and reason about.
 import pytest
 
 from metaculus_bot.constants import (
+    AKASHML_API_KEY_ENV,
+    AKASHML_BASE_URL_ENV,
     BINARY_PROB_MAX,
     BINARY_PROB_MIN,
     BINARY_STACKING_ENABLED_ENV,
@@ -28,6 +30,9 @@ from metaculus_bot.constants import (
     MC_PROB_MIN,
     MC_STACKING_ENABLED_ENV,
     METACULUS_HOST,
+    MODAL_API_KEY_ENV,
+    MODAL_BASE_URL_ENV,
+    MODEL_GATEWAY_ENV,
     NATIVE_SEARCH_DEFAULT_MODEL,
     NATIVE_SEARCH_REASONING_EFFORT_DEFAULT,
     NATIVE_SEARCH_TIMEOUT,
@@ -39,6 +44,7 @@ from metaculus_bot.constants import (
     donated_openrouter_key_enabled,
     env_flag_enabled,
 )
+from metaculus_bot.fallback_openrouter import build_llm_with_openrouter_fallback
 
 
 class TestBinaryClampBounds:
@@ -91,17 +97,18 @@ class TestNativeSearchDefaults:
     """
 
     def test_native_search_default_model_is_gpt_6_1_sol(self) -> None:
-        """Locks the default OpenRouter model to ``openai/gpt-6.1-sol``
-        (2026-07-17 sol→terra flip per the blind research-role audit,
-        scratch/research_role_audit_2026-07-17/ — terra 1st, sol 2nd; then the
-        2026-09-22 GPT-6 migration, where Terra has no GPT-6 successor so the
-        role moved to Sol, followed by the 2026-09-29 Sol 6.1 migration)."""
-        assert NATIVE_SEARCH_DEFAULT_MODEL == "openrouter/free"
+        """Locks the default OpenRouter free model to a live supported route.
+
+        The retired generic ``openrouter/free`` alias 404s; the current free-model
+        roster uses the explicit Google free route that is known-good in the live
+        smoke path.
+        """
+        assert NATIVE_SEARCH_DEFAULT_MODEL == "openrouter/google/gemma-4-31b-it:free"
 
     def test_gap_fill_sol_defaults_are_gpt_6_1(self) -> None:
-        assert GAP_FILL_ANALYZER_MODEL == "openrouter/free"
-        assert GAP_FILL_RESOLVER_MODEL == "openrouter/free"
-        assert GAP_FILL_V2_DRIVER_MODEL == "openrouter/free"
+        assert GAP_FILL_ANALYZER_MODEL == "openrouter/google/gemma-4-31b-it:free"
+        assert GAP_FILL_RESOLVER_MODEL == "openrouter/google/gemma-4-31b-it:free"
+        assert GAP_FILL_V2_DRIVER_MODEL == "openrouter/google/gemma-4-31b-it:free"
 
     def test_native_search_reasoning_effort_default_is_low(self):
         """Low effort gives ~4.5× faster wall-clock vs medium on the v3 bench
@@ -118,6 +125,28 @@ class TestNativeSearchDefaults:
     def test_native_search_timeout_is_360s(self):
         """360s cap leaves ~130s headroom on top of observed p99 (~230s)."""
         assert NATIVE_SEARCH_TIMEOUT == 360
+
+
+class TestModelGatewayOverrides:
+    """Optional external gateways can override the repo's default OpenRouter route."""
+
+    def test_akashml_gateway_reroutes_model_calls(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(MODEL_GATEWAY_ENV, "akashml")
+        monkeypatch.setenv(AKASHML_API_KEY_ENV, "akash-key")
+        monkeypatch.setenv(AKASHML_BASE_URL_ENV, "https://akash.example/v1")
+        llm = build_llm_with_openrouter_fallback("meta-llama/Llama-3.3-70B-Instruct")
+        assert llm.litellm_kwargs["api_key"] == "akash-key"
+        assert llm.litellm_kwargs["base_url"] == "https://akash.example/v1"
+        assert llm.model == "meta-llama/Llama-3.3-70B-Instruct"
+
+    def test_modal_gateway_reroutes_model_calls(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(MODEL_GATEWAY_ENV, "modal")
+        monkeypatch.setenv(MODAL_API_KEY_ENV, "modal-key")
+        monkeypatch.setenv(MODAL_BASE_URL_ENV, "https://modal.example/v1")
+        llm = build_llm_with_openrouter_fallback("qwen3-coder-30b")
+        assert llm.litellm_kwargs["api_key"] == "modal-key"
+        assert llm.litellm_kwargs["base_url"] == "https://modal.example/v1"
+        assert llm.model == "qwen3-coder-30b"
 
 
 class TestGeminiNativeSdkModelDefaults:

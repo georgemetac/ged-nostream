@@ -267,15 +267,16 @@ personal is in `docs/operations.md` "API keys and the shared-vs-personal key mod
 Default on; a Mantic run sets it false and fails shut at startup if it is not, see
 `donated_openrouter_key_enabled` above.
 
-`OPENROUTER_FREE_MODEL` is the active LLM route (`openrouter/free`). OpenRouter selects an available
-free model per request; production workflows use `OPENROUTER_API_KEY` and disable donated-key
-routing. Mantic's three forecasters are the exception: `MANTIC_FORECASTER_MODELS` in
-`llm_configs.py` pins distinct free model IDs and caps completions at 32,768 tokens. The IDs were
-checked against OpenRouter's live catalog on 2026-09-30. Both platform forecaster rosters also
-send an ordered `models` fallback array containing two additional `:free` models; OpenRouter tries
-these only when the primary model fails. Utility and gap-fill roles still use their existing
-routes. `TAVILY_API_KEY_ENV` and `NIMBLE_API_KEY_ENV` name the primary and fallback web-search API
-keys respectively.
+`OPENROUTER_FREE_MODEL` is the active LLM route (`openrouter/google/gemma-4-31b-it:free`).
+The generic `openrouter/free` alias is retired and returns 404s on OpenRouter, so the active
+route is pinned to an explicit free model that is known to serve. Production workflows use
+`OPENROUTER_API_KEY` and disable donated-key routing. Mantic's three forecasters are the
+exception: `MANTIC_FORECASTER_MODELS` in `llm_configs.py` pins distinct free model IDs and caps
+completions at 32,768 tokens. The IDs were checked against OpenRouter's live catalog on
+2026-09-30. Both platform forecaster rosters also send an ordered `models` fallback array
+containing two additional `:free` models; OpenRouter tries these only when the primary model
+fails. Utility and gap-fill roles still use their existing routes. `TAVILY_API_KEY_ENV` and
+`NIMBLE_API_KEY_ENV` name the primary and fallback web-search API keys respectively.
 
 ### ASKNEWS_MAX_CONCURRENCY, ASKNEWS_MAX_RPS, ASKNEWS_MAX_TRIES, ASKNEWS_BACKOFF_SECS
 

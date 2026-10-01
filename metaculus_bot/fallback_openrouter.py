@@ -8,9 +8,17 @@ import litellm.exceptions
 from forecasting_tools import GeneralLlm
 
 from metaculus_bot.constants import (
+    AKASHML_API_KEY_ENV,
+    AKASHML_BASE_URL_ENV,
     CREDIT_ALERT_RESUME_DATE,
+    MODAL_API_KEY_ENV,
+    MODAL_BASE_URL_ENV,
+    MODEL_GATEWAY_AKASHML,
+    MODEL_GATEWAY_MODAL,
+    MODEL_GATEWAY_OPENROUTER,
     OAI_ANTH_OPENROUTER_KEY_ENV,
     OPENROUTER_API_KEY_ENV,
+    active_model_gateway,
     credit_alerts_active,
     donated_openrouter_key_enabled,
     gemini_use_donated_openrouter_key,
@@ -466,6 +474,39 @@ class FallbackOpenRouterLlm(GeneralLlm):
         return await self._secondary_llm.invoke(prompt, system_prompt)
 
 
+def _gateway_llm_override() -> tuple[str, str, str] | None:
+    """OpenAI-compatible secondary gateway configuration, if explicitly enabled.
+
+    The repo keeps OpenRouter as the default route, but a developer can opt into
+    AkashML or Modal by setting ``MODEL_GATEWAY`` and that gateway's API key / base URL.
+    This is intentionally explicit: if the override is set to a gateway, the process does
+    not silently fall back to the default OpenRouter route.
+    """
+    gateway = active_model_gateway()
+    if gateway == MODEL_GATEWAY_OPENROUTER:
+        return None
+
+    if gateway == MODEL_GATEWAY_AKASHML:
+        base_url = os.getenv(AKASHML_BASE_URL_ENV)
+        api_key = os.getenv(AKASHML_API_KEY_ENV)
+        if not base_url or not api_key:
+            raise RuntimeError(
+                "MODEL_GATEWAY=akashml requires both AKASHML_BASE_URL and AKASHML_API_KEY to be set."
+            )
+        return gateway, base_url, api_key
+
+    if gateway == MODEL_GATEWAY_MODAL:
+        base_url = os.getenv(MODAL_BASE_URL_ENV)
+        api_key = os.getenv(MODAL_API_KEY_ENV)
+        if not base_url or not api_key:
+            raise RuntimeError(
+                "MODEL_GATEWAY=modal requires both MODAL_BASE_URL and MODAL_API_KEY to be set."
+            )
+        return gateway, base_url, api_key
+
+    return None
+
+
 def build_llm_with_openrouter_fallback(model: str, *, role: str | None = None, **kwargs: Any) -> GeneralLlm:
     """
     Construct a GeneralLlm that automatically falls back from the Metaculus-donated OpenRouter
@@ -475,7 +516,21 @@ def build_llm_with_openrouter_fallback(model: str, *, role: str | None = None, *
     ``role`` names the spend line every completion of this LLM is booked under in the
     ``CREDIT_ROLE_SPEND`` ledger (``credit_telemetry.llm_call_metadata`` lists the roles in
     use). Pass it at every production call site; a missing role books as ``untagged``.
+
+    An explicit ``MODEL_GATEWAY`` override (``akashml`` or ``modal``) routes calls through the
+    configured OpenAI-compatible endpoint instead of OpenRouter.
     """
+    gateway_override = _gateway_llm_override()
+    if gateway_override is not None:
+        _, base_url, api_key = gateway_override
+        return GeneralLlm(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            metadata=llm_call_metadata(role, plain_llm_key_alias(model)),
+            **kwargs,
+        )
+
     if should_route_via_donated_key(model):
         special_key = os.getenv(OAI_ANTH_OPENROUTER_KEY_ENV)
         general_key = os.getenv(OPENROUTER_API_KEY_ENV)

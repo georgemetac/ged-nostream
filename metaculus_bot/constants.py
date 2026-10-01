@@ -202,7 +202,18 @@ TEST_QUESTIONS_OVERRIDE_ENV: str = "TEST_QUESTIONS_OVERRIDE"
 # Named so the literals are not duplicated. Receipt: docs/constants.md "OPENROUTER_API_KEY_ENV".
 OPENROUTER_API_KEY_ENV: str = "OPENROUTER_API_KEY"
 OAI_ANTH_OPENROUTER_KEY_ENV: str = "OAI_ANTH_OPENROUTER_KEY"
-OPENROUTER_FREE_MODEL: str = "openrouter/free"
+AKASHML_API_KEY_ENV: str = "AKASHML_API_KEY"
+AKASHML_BASE_URL_ENV: str = "AKASHML_BASE_URL"
+MODAL_API_KEY_ENV: str = "MODAL_API_KEY"
+MODAL_BASE_URL_ENV: str = "MODAL_BASE_URL"
+MODEL_GATEWAY_ENV: str = "MODEL_GATEWAY"
+MODEL_GATEWAY_OPENROUTER: str = "openrouter"
+MODEL_GATEWAY_AKASHML: str = "akashml"
+MODEL_GATEWAY_MODAL: str = "modal"
+# The generic ``openrouter/free`` alias is retired and 404s on OpenRouter; keep the
+# active default pinned to a live explicit free model so research and utility calls
+# do not fail on a no-endpoint route.
+OPENROUTER_FREE_MODEL: str = "openrouter/google/gemma-4-31b-it:free"
 TAVILY_API_KEY_ENV: str = "TAVILY_API_KEY"
 NIMBLE_API_KEY_ENV: str = "NIMBLE_API_KEY"
 WEB_SEARCH_API_TIMEOUT_S: float = 20.0
@@ -230,6 +241,19 @@ def env_flag_enabled(env_name: str, *, default: bool = False) -> bool:
     if raw in ("false", "0", "no"):
         return False
     return default
+
+
+def active_model_gateway() -> str:
+    """Which model gateway is active for direct OpenAI-compatible access.
+
+    Defaults to ``openrouter`` so the repo keeps its current behavior unless a caller
+    intentionally opts into an alternate provider. The supported values are
+    ``openrouter``, ``akashml`` and ``modal``.
+    """
+    gateway = os.getenv(MODEL_GATEWAY_ENV, MODEL_GATEWAY_OPENROUTER).strip().lower()
+    if gateway in {MODEL_GATEWAY_OPENROUTER, MODEL_GATEWAY_AKASHML, MODEL_GATEWAY_MODAL}:
+        return gateway
+    return MODEL_GATEWAY_OPENROUTER
 
 
 def _int_env(name: str, default: int) -> int:
