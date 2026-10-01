@@ -13,6 +13,8 @@ from metaculus_bot.constants import (
     CREDIT_ALERT_RESUME_DATE,
     MODAL_API_KEY_ENV,
     MODAL_BASE_URL_ENV,
+    MODAL_TOKEN_ID_ENV,
+    MODAL_TOKEN_SECRET_ENV,
     MODEL_GATEWAY_AKASHML,
     MODEL_GATEWAY_MODAL,
     MODEL_GATEWAY_OPENROUTER,
@@ -498,9 +500,20 @@ def _gateway_llm_override() -> tuple[str, str, str] | None:
     if gateway == MODEL_GATEWAY_MODAL:
         base_url = os.getenv(MODAL_BASE_URL_ENV)
         api_key = os.getenv(MODAL_API_KEY_ENV)
-        if not base_url or not api_key:
+        token_id = os.getenv(MODAL_TOKEN_ID_ENV)
+        token_secret = os.getenv(MODAL_TOKEN_SECRET_ENV)
+        if not base_url:
+            raise RuntimeError("MODEL_GATEWAY=modal requires MODAL_BASE_URL to be set.")
+        if not api_key and not token_secret:
             raise RuntimeError(
-                "MODEL_GATEWAY=modal requires both MODAL_BASE_URL and MODAL_API_KEY to be set."
+                "MODEL_GATEWAY=modal requires either MODAL_API_KEY or MODAL_TOKEN_SECRET to be set."
+            )
+        if not api_key and token_secret:
+            api_key = token_secret
+        if token_id and not token_secret:
+            raise RuntimeError(
+                "MODEL_GATEWAY=modal has MODAL_TOKEN_ID set but no MODAL_TOKEN_SECRET; "
+                "use `modal token set --token-id ... --token-secret ... --profile=...` and export the keys."
             )
         return gateway, base_url, api_key
 

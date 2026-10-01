@@ -32,6 +32,8 @@ from metaculus_bot.constants import (
     METACULUS_HOST,
     MODAL_API_KEY_ENV,
     MODAL_BASE_URL_ENV,
+    MODAL_TOKEN_ID_ENV,
+    MODAL_TOKEN_SECRET_ENV,
     MODEL_GATEWAY_ENV,
     NATIVE_SEARCH_DEFAULT_MODEL,
     NATIVE_SEARCH_REASONING_EFFORT_DEFAULT,
@@ -145,6 +147,17 @@ class TestModelGatewayOverrides:
         monkeypatch.setenv(MODAL_BASE_URL_ENV, "https://modal.example/v1")
         llm = build_llm_with_openrouter_fallback("qwen3-coder-30b")
         assert llm.litellm_kwargs["api_key"] == "modal-key"
+        assert llm.litellm_kwargs["base_url"] == "https://modal.example/v1"
+        assert llm.model == "qwen3-coder-30b"
+
+    def test_modal_gateway_accepts_token_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(MODEL_GATEWAY_ENV, "modal")
+        monkeypatch.delenv(MODAL_API_KEY_ENV, raising=False)
+        monkeypatch.setenv(MODAL_TOKEN_ID_ENV, "ak-BRsPSrSKkBfr2qR8l7K952")
+        monkeypatch.setenv(MODAL_TOKEN_SECRET_ENV, "as-alP0YwH8117OVzxKHiQlBw")
+        monkeypatch.setenv(MODAL_BASE_URL_ENV, "https://modal.example/v1")
+        llm = build_llm_with_openrouter_fallback("qwen3-coder-30b")
+        assert llm.litellm_kwargs["api_key"] == "as-alP0YwH8117OVzxKHiQlBw"
         assert llm.litellm_kwargs["base_url"] == "https://modal.example/v1"
         assert llm.model == "qwen3-coder-30b"
 
