@@ -105,12 +105,12 @@ class TestNativeSearchDefaults:
         roster uses the explicit Google free route that is known-good in the live
         smoke path.
         """
-        assert NATIVE_SEARCH_DEFAULT_MODEL == "openrouter/google/gemma-4-31b-it:free"
+        assert NATIVE_SEARCH_DEFAULT_MODEL == "openrouter/inception/mercury-decide:free"
 
     def test_gap_fill_sol_defaults_are_gpt_6_1(self) -> None:
-        assert GAP_FILL_ANALYZER_MODEL == "openrouter/google/gemma-4-31b-it:free"
-        assert GAP_FILL_RESOLVER_MODEL == "openrouter/google/gemma-4-31b-it:free"
-        assert GAP_FILL_V2_DRIVER_MODEL == "openrouter/google/gemma-4-31b-it:free"
+        assert GAP_FILL_ANALYZER_MODEL == "openrouter/inception/mercury-decide:free"
+        assert GAP_FILL_RESOLVER_MODEL == "openrouter/inception/mercury-decide:free"
+        assert GAP_FILL_V2_DRIVER_MODEL == "openrouter/inception/mercury-decide:free"
 
     def test_native_search_reasoning_effort_default_is_low(self):
         """Low effort gives ~4.5× faster wall-clock vs medium on the v3 bench

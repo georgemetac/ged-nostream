@@ -213,9 +213,8 @@ MODEL_GATEWAY_OPENROUTER: str = "openrouter"
 MODEL_GATEWAY_AKASHML: str = "akashml"
 MODEL_GATEWAY_MODAL: str = "modal"
 # The generic ``openrouter/free`` alias is retired and 404s on OpenRouter; keep the
-# active default pinned to a live explicit free model so research and utility calls
-# do not fail on a no-endpoint route.
-OPENROUTER_FREE_MODEL: str = "openrouter/google/gemma-4-31b-it:free"
+# active default pinned to an explicit, live free model route rather than a no-endpoint alias.
+OPENROUTER_FREE_MODEL: str = "openrouter/inception/mercury-decide:free"
 TAVILY_API_KEY_ENV: str = "TAVILY_API_KEY"
 NIMBLE_API_KEY_ENV: str = "NIMBLE_API_KEY"
 WEB_SEARCH_API_TIMEOUT_S: float = 20.0

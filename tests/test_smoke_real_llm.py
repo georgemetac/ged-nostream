@@ -26,7 +26,7 @@ from forecasting_tools.data_models.binary_report import BinaryPrediction
 from metaculus_bot.prompts import binary_prompt, multiple_choice_prompt, numeric_prompt
 from metaculus_bot.structured_output_schema import NumericStructured, parse_structured_block
 
-FREE_MODEL = "openrouter/google/gemma-4-31b-it:free"
+FREE_MODEL = "openrouter/inception/mercury-decide:free"
 SKIP_REASON = "OPENROUTER_API_KEY not set"
 
 skip_no_key = pytest.mark.skipif(not os.getenv("OPENROUTER_API_KEY"), reason=SKIP_REASON)
